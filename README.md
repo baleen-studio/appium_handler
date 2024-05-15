@@ -1,39 +1,29 @@
-<!--
-This README describes the package. If you publish this package to pub.dev,
-this README's contents appear on the landing page for your package.
+# Appium Flutter Driver Handler
 
-For information about how to write a good package README, see the guide for
-[writing package pages](https://dart.dev/guides/libraries/writing-package-pages).
+_Appium Flutter Driver_から呼び出されるコールバック関数。
+テスト対象アプリにリンクする必要がある。
+画面サイズの取得、画面イメージの取得、Widgetの操作等を行っている。
 
-For general information about developing packages, see the Dart guide for
-[creating packages](https://dart.dev/guides/libraries/create-library-packages)
-and the Flutter guide for
-[developing packages and plugins](https://flutter.dev/developing-packages).
--->
+## Getting Started
 
-TODO: Put a short description of the package here that helps potential users
-know whether this package might be useful for them.
+_flutter_driver_初期化時に登録する。
 
-## Features
+```dart:main.dart
+import 'package:appium_handler/appium_handler.dart';
 
-TODO: List what your package can do. Maybe include images, gifs, or videos.
-
-## Getting started
-
-TODO: List prerequisites and provide or point to information on how to
-start using the package.
-
-## Usage
-
-TODO: Include short and useful examples for package users. Add longer examples
-to `/example` folder.
-
-```dart
-const like = 'sample';
+void main() {
+  var handler = AppiumHandler();
+  enableFlutterDriverExtension(
+    handler: handler.appiumHandler,
+    notifier: handler.initNotifier,
+  );
+  runApp(MyApp());
+}
 ```
 
-## Additional information
+元々の_enableFlutterDriverExtension_関数には_notifier_という引数はないが、
+_flutter_driver_に手を入れてある。
+目的は、_FlutterDriverExtension_クラスのインスタンスの作成を知るため。
+_FlutterDriverExtension_を使い、アプリに__tap__や__enter_text__等の動作を実行させる。
 
-TODO: Tell users more about the package: where to find more information, how to
-contribute to the package, how to file issues, what response they can expect
-from the package authors, and more.
+これらの処理は_Appium Flutter Driver_側に実装できそうなので、後々そちらに移動予定。
