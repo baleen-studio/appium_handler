@@ -1,24 +1,27 @@
 library appium_handler;
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:developer';
 import 'dart:isolate';
 
+import 'package:appium_handler/widget_tree.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/foundation.dart';
-import 'package:flutter_driver/driver_extension.dart';
+import 'package:flutter/scheduler.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:xml/xml.dart';
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter_email_sender/flutter_email_sender.dart';
-import 'package:visibility_detector/visibility_detector.dart';
+//import 'package:visibility_detector/visibility_detector.dart';
 import 'package:test/test.dart';
 import 'package:flutter_driver/flutter_driver.dart';
 
+import 'package:appium_handler/driver_extension.dart';
+
 /// A Calculator.
-class AppiumHandler {
+class AppiumHandler/* with WidgetInspectorService*/ {
   static final AppiumHandler _instance = AppiumHandler._internal();
 
   factory AppiumHandler() {
@@ -26,7 +29,7 @@ class AppiumHandler {
   }
 
   AppiumHandler._internal();
-
+  
   /// Returns [value] plus 1.
   int addOne(int value) => value + 1;
 
@@ -39,65 +42,31 @@ class AppiumHandler {
   //FlutterDriver? _driver;
   BuildContext? _context;
   XmlDocument? _document;
-  FlutterDriverExtension? _driverExtension;
+  MyDriverExtension? _driverExtension;
   bool _isInTest = false;
   var uuid = const Uuid();
   final _receivePort = ReceivePort();
-  final _visiblityDetectorrController = VisibilityDetectorController();
+  SendPort? _senderPort;
+  //final _visiblityDetectorrController = VisibilityDetectorController();
+  Map<String, List<Offset>> _treeItemOffsets = {};
+
+  MyDriverExtension? get driverExtension => _driverExtension;
 
   //set myApp(StatelessWidget app) {
   //  _myApp = app;
   //}
-  BuildContext? get buildContext => _context;
+  //BuildContext? get buildContext => _context;
   set buildContext(BuildContext? context) {
     _context = context;
   }
-
-  /*
-  RenderObject?  _renderObject(Element ele) {
-    Element? current = ele;
-    while (current != null) {
-      if (current is RenderObjectElement) {
-        return current.renderObject;
-      } else {
-        current = current.renderObjectAttachingChild;
-      }
-    }
-    return null;
+  SendPort get mySendPort => _receivePort.sendPort;
+  set senderPort(SendPort sendPort) {
+    _senderPort = sendPort;
+    //_senderPort?.send(_receivePort.sendPort);
   }
 
-  Future<String?> _getVmServiceUri() async {
-    final results = await run('flutter --list-vms');
-    for (final result in results) {
-      if (result.exitCode != 0 || result.stdout == null) {
-        return null;
-      }
-      final lines = result.stdout!.split('\n');
-      for (final line in lines) {
-        if (line.contains('Observatory listening on')) {
-          final uri = line.split(' ').last;
-          return uri;
-        }
-      }
-    }
-    return null;
-  }
-
-  VisibilityDetector _buildVisiblityDetector(Widget widget, {Key? key}) {
-    return VisibilityDetector(
-      key: widget.key ?? key!,
-      onVisibilityChanged: (visibilityInfo) {
-        var visiblePercentage = visibilityInfo.visibleFraction * 100;
-        _sendMail(subject:"dartVmServiceUrl", body:
-        'Widget ${visibilityInfo.key} is $visiblePercentage% visible');
-      },
-      child: widget,
-    );
-  }
-   */
-
-  Future<void> initNotifier(FlutterDriverExtension extension) async {
-    _driverExtension = extension;
+  buildDriverExtension() {
+    _driverExtension = MyDriverExtension(appiumHandler, true, false);
   }
 
   Future<void> testTap(String text) async {
@@ -116,6 +85,7 @@ class AppiumHandler {
   }
 
   Future<String> appiumHandler(String? cmd) async {
+  //sendMail(subject: "apiHandler", body:cmd);
     var cmdAndArg = cmd?.split(':');
     var msg = cmdAndArg?[0]; //parts[1].trim();
     if (msg == 'getScreenSize') {
@@ -133,264 +103,148 @@ class AppiumHandler {
       //final screenSize = WidgetsBinding.instance.window.physicalSize;
       return jsonEncode({'width': deviceWidth, 'height': deviceHeight});
     } else if (msg == 'getPageSource') {
-      void visitor(Element element) {
-        final renderObject = element.renderObject;  // _renderObject(element);
-        String? key;
-        if (element.widget.key == null) {
-          key = "";
-        } else {
-          key = element.widget.key.toString();
-        }
-        var type = element.widget.runtimeType.toString()
-            .replaceAll('<', '-')
-            .replaceAll('>', '-');
-        if (element.widget.key != null && element.widget.key.toString().isNotEmpty &&
-            type.substring(0, 1) != '_' && !key.contains("GlobalKey") && !key.contains("GlobalObjectKey")) {
-        //if (element.widget is Semantics) {
-          var left = renderObject?.paintBounds.left;
-          var top = renderObject?.paintBounds.top;
-          var right = renderObject?.paintBounds.right;
-          var bottom = renderObject?.paintBounds.bottom;
+      final tree = MyWidgetInspectorService();
 
-          RenderBox? renderBox;
-          if (renderObject is RenderBox) {
-            renderBox = renderObject;
-          } else {
-            renderBox = _context?.findRenderObject() as RenderBox;
-          }
-          Offset topLeft = renderBox.localToGlobal(Offset(left!, top!));
-          Offset bottomRight = renderBox.localToGlobal(Offset(right!, bottom!));
-          String? text = '';
-          String? toolTip = '';
-          String? pass = "false";
-          try {
-            (element.widget as dynamic).tooltip;
-            toolTip = (element.widget as dynamic).tooltip as String;
-          } on NoSuchMethodError {
-            debugPrint("tooltip not included in ${element.widget.runtimeType.toString()}");
-          }
-          if (element.widget.runtimeType == Text) {
-            text = (element.widget as Text).data;
-          } else if (element.widget.runtimeType == RichText) {
-            final RichText richText = element.widget as RichText;
-            text = richText.text.toPlainText(
-              includeSemanticsLabels: false,
-              includePlaceholders: false,
-            );
-          } else if (element.widget.runtimeType == TextField) {
-            pass = (element.widget as TextField).obscureText ? "true" : "false";
-            text = (element.widget as TextField).controller?.text;
-          } else if (element.widget.runtimeType == TextFormField) {
-            text = (element.widget as TextFormField).controller?.text;
-          } else if (element.widget.runtimeType == EditableText) {
-            text = (element.widget as EditableText).controller.text;
-          } else if (type == "Text") {
-            text = (element.widget as Text).data;
-          } else if (type == "RichText") {
-            text = (element.widget as RichText).text.toPlainText(
-              includeSemanticsLabels: false,
-              includePlaceholders: false,
-            );
-          } else if (type == "TextField") {
-            pass = (element.widget as TextField).obscureText ? "true" : "false";
-            text = (element.widget as TextField).controller?.text;
-          } else if (type == "Tooltip") {
-            toolTip = (element.widget as Tooltip).message;
-          }
-          bool isEditable = (element.widget is TextField || element.widget is TextFormField);
+      void layoutTree(Map<String, dynamic>? element) {
+        final valueId = element?['valueId'];
 
-          ++_index;
-          _source =
-          '$_source<$type id="${element.widget
-              .hashCode}" key="$key" index="$_index" class="$type" text="$text" tooltip="$toolTip" password="$pass" bounds="[${topLeft
-              //.hashCode}" key="$key" index="$_index" class="$type" text="$text" bounds="[${topLeft
-              .dx.toInt()},${topLeft.dy.toInt()}][${bottomRight.dx
-              .toInt()},${bottomRight.dy.toInt()}]" attached="${renderObject!
-              .attached ? "true" : "false"}" input="${isEditable ? "true" : "false"}"';
-          /*
-          if (element.widget is Semantics) {
-            try {
-              if ((element.widget as Semantics).child != null) {
-                _source +=
-                ' child="${(element.widget as Semantics).child.runtimeType.toString()}"';
+        double left = 0.0;
+        double top = 0.0;
+        double width = 0.0;
+        double height = 0.0;
+
+        final layout = tree.getLayoutExplorerNode({'id':valueId, 'subtreeDepth': '100000', "groupName": "tree_1"});
+        Map<String, dynamic> result = layout['result'] as Map<String, dynamic>;
+        Map<String, dynamic> size = result['size'];
+        width = double.parse(size['width']);
+        height = double.parse(size['height']);
+        if (result['parentData'] != null) {
+          Map<String, dynamic> parentData = result['parentData'];
+          left = double.parse(parentData['globalX']);
+          top = double.parse(parentData['globalY']);
+        } else if (result['renderObject'] != null) {
+          Map<String, dynamic> renderObject = result['renderObject'];
+          List<dynamic> properties = renderObject['properties'];
+          for (Map<String, dynamic> property in properties) {
+            if (property['name'] == 'parentData') {
+              String description = property['description'];
+              if (description.indexOf('Offset') > 0) {
+                final parts = description.split(';');
+                int start = parts[0].indexOf('(');
+                final values = parts[0].substring(start+1);
+                int comma = values.indexOf(',');
+                final xValue = values.substring(0, comma);
+                int bracket = values.indexOf(')');
+                final yValue = values.substring(comma+2, bracket);
+                left = double.parse(xValue);
+                top = double.parse(yValue);
               }
-              _source +=
-              ' attributedHint="${(element.widget as Semantics).properties
-                  .attributedHint ?? ""}"';
-              _source +=
-              ' attributedIncreasedValue="${(element.widget as Semantics)
-                  .properties.attributedIncreasedValue ?? ""}"';
-              _source +=
-              ' attributedLabel="${(element.widget as Semantics).properties
-                  .attributedLabel ?? ""}"';
-              _source +=
-              ' attributedValue="${(element.widget as Semantics).properties
-                  .attributedValue ?? ""}"';
-              if ((element.widget as Semantics).properties.button!=null) {
-                _source +=
-                ' button="${(element.widget as Semantics).properties.button!
-                    ? "true"
-                    : "false"}"';
-              }
-              if ((element.widget as Semantics).properties.checked != null) {
-                _source +=
-                ' checked="${(element.widget as Semantics).properties.checked!
-                    ? "true"
-                    : "false"}"';
-              }
-              _source +=
-              ' currentValueLength="${(element.widget as Semantics).properties
-                  .currentValueLength ?? ""}"';
-              _source +=
-              ' decreasedValue="${(element.widget as Semantics).properties
-                  .decreasedValue ?? ""}"';
-              if ((element.widget as Semantics).properties.enabled != null) {
-                _source +=
-                ' enabled="${(element.widget as Semantics).properties.enabled!
-                    ? "true"
-                    : "false"}"';
-              }
-              if ((element.widget as Semantics).properties.expanded != null) {
-                _source +=
-                ' expanded="${(element.widget as Semantics).properties.expanded!
-                    ? "true"
-                    : "false"}"';
-              }
-              if ((element.widget as Semantics).properties.focusable != null) {
-                _source +=
-                ' focusable="${(element.widget as Semantics).properties
-                    .focusable!
-                    ? "true"
-                    : "false"}"';
-              }
-              if ((element.widget as Semantics).properties.focused != null) {
-                _source +=
-                ' focused="${(element.widget as Semantics).properties.focused!
-                    ? "true"
-                    : "false"}"';
-              }
-              if ((element.widget as Semantics).properties.header != null) {
-                _source +=
-                ' header="${(element.widget as Semantics).properties.header!
-                    ? "true"
-                    : "false"}"';
-              }
-              if ((element.widget as Semantics).properties.hidden != null) {
-                _source +=
-                ' hidden="${(element.widget as Semantics).properties.hidden!
-                    ? "true"
-                    : "false"}"';
-              }
-              _source +=
-              ' hint="${(element.widget as Semantics).properties.hint ?? ""}"';
-              _source +=
-              ' identifier="${(element.widget as Semantics).properties
-                  .identifier ?? ""}"';
-              if ((element.widget as Semantics).properties.image != null) {
-                _source +=
-                ' image="${(element.widget as Semantics).properties.image!
-                    ? "true"
-                    : "false"}"';
-              }
-              _source += ' image="${(element.widget as Semantics).properties
-                  .increasedValue ?? ""}"';
-              if ((element.widget as Semantics).properties.inMutuallyExclusiveGroup != null) {
-                _source +=
-                ' inMutuallyExclusiveGroup="${(element.widget as Semantics)
-                    .properties.inMutuallyExclusiveGroup! ? "true" : "false"}"';
-              }
-              if ((element.widget as Semantics).properties.keyboardKey != null) {
-                _source +=
-                ' keyboardKey="${(element.widget as Semantics).properties
-                    .keyboardKey! ? "true" : "false"}"';
-              }
-              _source +=
-              ' keyboardKey="${(element.widget as Semantics).properties
-                  .label ?? ""}"';
-              if ((element.widget as Semantics).properties.link != null) {
-                _source +=
-                ' link="${(element.widget as Semantics).properties.link!
-                    ? "true"
-                    : "false"}"';
-              }
-              if ((element.widget as Semantics).properties.liveRegion != null) {
-                _source +=
-                ' liveRegion="${(element.widget as Semantics).properties
-                    .liveRegion! ? "true" : "false"}"';
-              }
-              if ((element.widget as Semantics).properties.multiline != null) {
-                _source +=
-                ' multiline="${(element.widget as Semantics).properties
-                    .multiline!
-                    ? "true"
-                    : "false"}"';
-              }
-              if ((element.widget as Semantics).properties.namesRoute != null) {
-                _source +=
-                ' namesRoute="${(element.widget as Semantics).properties
-                    .namesRoute! ? "true" : "false"}"';
-              }
-              if ((element.widget as Semantics).properties.obscured != null) {
-                _source +=
-                ' password="${(element.widget as Semantics).properties.obscured!
-                    ? "true"
-                    : "false"}"';
-              } else {
-                _source += ' password="$pass"';
-              }
-              if ((element.widget as Semantics).properties.readOnly != null) {
-                _source +=
-                ' readOnly="${(element.widget as Semantics).properties.readOnly!
-                    ? "true"
-                    : "false"}"';
-              }
-              if ((element.widget as Semantics).properties.scopesRoute != null) {
-                _source +=
-                ' scopesRoute="${(element.widget as Semantics).properties
-                    .scopesRoute! ? "true" : "false"}"';
-              }
-              if ((element.widget as Semantics).properties.selected != null) {
-                _source +=
-                ' selected="${(element.widget as Semantics).properties.selected!
-                    ? "true"
-                    : "false"}"';
-              }
-              if ((element.widget as Semantics).properties.slider != null) {
-                _source +=
-                ' slider="${(element.widget as Semantics).properties.slider!
-                    ? "true"
-                    : "false"}"';
-              }
-              if ((element.widget as Semantics).properties.textField != null) {
-                _source +=
-                ' textField="${(element.widget as Semantics).properties
-                    .textField!
-                    ? "true"
-                    : "false"}"';
-              }
-              _source +=
-              ' tooltip="${(element.widget as Semantics).properties.tooltip ?? toolTip}"';
-              _source +=
-              ' value="${(element.widget as Semantics).properties.value ?? ""}"';
-            } catch(e) {
-              _sendMail(subject:"execption", body: "$e");
-              return;
             }
           }
-           */
-          //_source += ' checkable="false" checked="false" clickable="true" enabled="true" focusable="true" focused="false" long-clickable="true" scrollable="false" selected="false" displayed="true" >\n';
-          _source += '  >\n';
-          element.visitChildren(visitor);
-          _source += '</$type>\n';
-          //  checkable="false" checked="false" clickable="true" enabled="true" focusable="true" focused="false" long-clickable="false" scrollable="false" selected="false" displayed="true"
-        } else {
-          element.visitChildren(visitor);
+        }
+        Offset topLeft = Offset(left, top);
+        Offset bottomRight = Offset(left+width, top+height);
+
+        List<Offset> listOffset = [topLeft, bottomRight];
+        _treeItemOffsets[valueId] = listOffset;
+
+        if (element?['hasChildren'] as bool) {
+          for (final child in element?['children']) {
+            layoutTree(child);
+          }
         }
       }
+
+      void visitorTree(Map<String, dynamic>? element) {
+        String runtimeType = element?['widgetRuntimeType'];
+        final type = runtimeType
+            .replaceAll('<', '-')
+            .replaceAll('>', '-');
+        final valueId = element?['valueId'];
+
+        List<dynamic> properties = tree.myGetProperties(valueId, 'tree_1');
+        String? key;
+        String? text;
+        String? enabled;
+        String? toolTip;
+        String? semanticLabel;
+        for (final property in properties) {
+          if (property['name'] == 'key') {
+            key = property['description'] ?? '';
+            key = key?.replaceAll('"', '');
+            if (key == 'null') {
+              key = '';
+            }
+          } else if (property['name'] == 'data') {
+            text = property['description'] ?? '';
+            text = text?.replaceAll('"', '');
+            if (text == 'null') {
+              text = '';
+            }
+          } else if (property['name'] == 'enabled') {
+            enabled = property['description'] ?? '';
+            enabled = enabled?.replaceAll('"', '');
+            if (enabled == 'null') {
+              enabled = '';
+            }
+          } else if (property['name'] == 'tooltip') {
+            toolTip = property['description'] ?? '';
+            toolTip = toolTip?.replaceAll('"', '');
+            if (toolTip == 'null') {
+              toolTip = '';
+            }
+          } else if (property['name'] == 'semanticLabel') {
+            semanticLabel = property['description'] ?? '';
+            semanticLabel = semanticLabel?.replaceAll('"', '');
+            if (semanticLabel == 'null') {
+              semanticLabel = '';
+            }
+          } else if (property['name'] == 'controller') {
+            final txt = property['description'];
+            final start = txt.indexOf('┤');
+            final end = txt.indexOf('├');
+            if (start > 0 && end > 0) {
+              text = txt.substring(start+1, end);
+            }
+          }
+        }
+
+        String? pass = "false";
+        bool isEditable = (runtimeType == 'TextField' || runtimeType == 'TextFormField');
+
+        Offset topLeft = const Offset(0.0, 0.0);
+        Offset bottomRight = const Offset(0.0, 0.0);
+        if (_treeItemOffsets[valueId] != null) {
+          final listOffset = _treeItemOffsets[valueId];
+          if (listOffset != null) {
+            topLeft = listOffset[0];
+            bottomRight = listOffset[1];
+          }
+        }
+
+        ++_index;
+        _source =
+        '$_source<$type id="$valueId" key="$key" index="$_index" class="$type" text="${text ?? ''}" tooltip="${toolTip ?? ''}" password="${pass ?? ''}" bounds="[${topLeft
+            .dx.toInt()},${topLeft.dy.toInt()}][${bottomRight.dx
+            .toInt()},${bottomRight.dy.toInt()}]" enabled="${enabled ?? ''}" semanticLabel="${semanticLabel ?? ''}" input="${isEditable ? "true" : "false"}" centerX="${((topLeft.dx+bottomRight.dx)/2).toInt()}" centerY="${((topLeft.dy+bottomRight.dy)/2).toInt()}"';
+        _source += '>\n';
+        if (element?['hasChildren'] as bool) {
+          for (final child in element?['children']) {
+            visitorTree(child);
+          }
+        }
+        _source += '</$type>\n';
+      }
+
       _source = '<?xml version="1.0"?>\n';
       _source += "<tree>\n";
+
+      final result = tree.getRootWidgetSummaryTreeWithPreviews({"groupName": "tree_1"});
+      layoutTree(result['result'] as Map<String, dynamic>?);
+      visitorTree(result['result'] as Map<String, dynamic>?);
+
       //WidgetsFlutterBinding.ensureInitialized().rootElement?.visitChildren(visitor);
-      visitor(WidgetsFlutterBinding.ensureInitialized().rootElement!);
+      //visitor(WidgetsFlutterBinding.ensureInitialized().rootElement!);
       //WidgetsFlutterBinding.ensureInitialized().rootElement?.visitChildElements(visitor);
       //_context?.visitChildElements(visitor);
       _source += "</tree>\n";
@@ -399,8 +253,10 @@ class AppiumHandler {
         return _document.toString();
       } catch (e) {
         // Handle any exceptions thrown during decoding
+        sendMail(subject: "XML parse", body: "Error parsing JSON: $_source");
         return _source;
       }
+    /*
     } else if (msg == 'screenShot') {
       String? b64;
       FlutterDriver? driver;
@@ -428,27 +284,33 @@ class AppiumHandler {
         sleep(const Duration(milliseconds: 1000));
       }
       return b64!;
+     */
     } else if (msg == 'performActions') {
       var idx = cmd?.indexOf(':');
       var json = cmd?.substring(idx! + 1).trim();
+      List<dynamic>? jsonObject;
       try {
         // Attempt to decode the JSON string
-        var jsonObject = jsonDecode(json!);
-        if (jsonObject is List) {
-          return await _performActions(jsonObject);
-        }
-        return "";
+        jsonObject = jsonDecode(json!);
       } catch (e) {
         // Handle any exceptions thrown during decoding
-        _sendMail(subject: "JSON decode", body: "Error decoding JSON: $e");
+        sendMail(subject: "JSON decode", body: "Error decoding JSON: $e");
         return 'Error decoding JSON: $e';
       }
+      if (jsonObject is List) {
+        return await _performActions(jsonObject);
+      }
+      return "";
     } else if (msg == 'click') {
       var parts = cmdAndArg?[1].split(',');
       String? ret;
-      _document?.descendants.toList().reversed.forEach((node) {
+      _document?.descendants.toList().reversed.forEach((node) async {
         var id = node.getAttribute("id");
         if (id == parts?[0]) {
+          final res = await _execCommandWithFinder(int.parse(node.getAttribute('centerX')!), int.parse(node.getAttribute('centerY')!), node, "tap");
+          ret = jsonEncode(res);
+          return;
+          /*
           final str = node.getAttribute('class');
           Map<String, String> params = {
             "command":"tap","finderType":"ByType","type":str!
@@ -457,6 +319,8 @@ class AppiumHandler {
           });
           ret =
             '{"value":{"ELEMENT":"$id","element-6066-11e4-a52e-4f735466cecf":"$id"},"sessionId":"${parts?[1]}"}';
+          return;
+           */
         }
       });
       return ret ?? "{}";
@@ -509,51 +373,105 @@ class AppiumHandler {
   }
 
   Future<String> _performActions(List<dynamic> jsonObject) async {
-    Map<String, dynamic> performs = jsonObject[0];
-    var type = performs['type'];
-    var id = performs['id'];
-    Map<String, dynamic> parameters = performs['parameters'];
+    Map<String, dynamic>? performs;
+    if (jsonObject[0] is List<dynamic>) {
+      performs = jsonObject[0][0];
+    } else {
+      performs = jsonObject[0];
+    }
+    var type = performs?['type'];
+    var id = performs?['id'];
+    Map<String, dynamic> parameters = performs?['parameters'];
     String? pointerType = parameters['pointerType'];
-    List<dynamic> actions = performs['actions'];
+    List<dynamic> actions = performs?['actions'];
+    int? duration;
+
+    String? foundBy;
+    String? foundValue;
+    for (Map<String, dynamic> action in actions) {
+      final f = action['foundBy'] as String?;
+      if (f != null  && f.isNotEmpty) {
+        foundBy = f;
+      }
+      final v = action['value'] as String?;
+      if (v != null && v.isNotEmpty) {
+        foundValue = v;
+      }
+    }
 
     int? x;
     int? y;
+    int? x2;
+    int? y2;
     for (Map<String, dynamic> action in actions) {
       //Result? response;
       //Map<String, dynamic>? response;
       var type = action['type'];
       switch (type) {
         case "pointerMove":
-          x = action['x'];
-          y = action['y'];
+          if (x != null) {
+            x2 = action['x'];
+            duration = action['duration'];
+          } else {
+            x = action['x'];
+          }
+          if (y != null) {
+            y2 = action['y'];
+          } else {
+            y = action['y'];
+          }
           break;
         case "pointerDown":
           break;
         case "pause":
-          sleep(Duration(milliseconds: action['duration']));
+          duration = action['duration'];
           break;
         case "pointerUp":
-          bool tapped = false;
           final node = _getNodeFromOffset(
               Offset(x!.toDouble(), y!.toDouble()));
           if (node != null) {
-            final result = await _execCommandWithFinder(x, y, node, "tap");
+            Map<String, dynamic>? result;
+            if ((x2 != null && x != x2) || (y2 != null && y != y2)) {
+              result = await _execCommandWithFinder(
+                  x, y, node, "scroll", duration: duration, dx: x2! - x, dy: y2! - y);
+            } else {
+              result = await _execCommandWithFinder(
+                  x, y, node, "tap", duration: duration);
+            }
             if (!result?['isError']) {
               sleep(const Duration(seconds: 1));
-              return '{"text":"${node.getAttribute("text")}","elementId":"${node.getAttribute("id")}","type":"${node.getAttribute("class")}"}';
+              return '{"text":"${node.getAttribute("text")}","elementId":"${node.getAttribute("id")}","type":"${node.getAttribute("class")}","foundBy":"${result?['foundBy']}","value":"${result?['value']}"}';
             }
           } else {
-            _sendMail(subject: "not found", body: "x = $x, y = $y");
+            sendMail(subject: "not found", body: "x = $x, y = $y");
           }
           break;
         case "enterText":
           final node = _getNodeFromOffset(
               Offset(x!.toDouble(), y!.toDouble()));
-          final result = await _execCommandWithFinder(x, y, node!, "enter_text", enterText: action['text']);
+          final result = await _execCommandWithFinder(x, y, node!, "enter_text", enterText: action['text'], foundBy: foundBy, value: foundValue);
           if (!result?['isError']) {
             sleep(const Duration(seconds: 1));
             return '{"text":"${node.getAttribute("text")}","elementId":"${node
-                .getAttribute("id")}","type":"${node.getAttribute("class")}"}';
+                .getAttribute("id")}","type":"${node.getAttribute("class")}","foundBy":"${result?['foundBy']}","value":"${result?['value']}"}';
+          }
+          break;
+        case "checkText":
+          final node = _getNodeFromOffset(
+              Offset(x!.toDouble(), y!.toDouble()));
+          final result = await _execCommandWithFinder(x, y, node!, "check_text", enterText: action['text'], foundBy: foundBy, value: foundValue);
+          if (!result?['isError']) {
+            return '{"text":"${node.getAttribute("text")}","elementId":"${node
+                .getAttribute("id")}","type":"${node.getAttribute("class")}","foundBy":"${result?['foundBy']}","value":"${result?['value']}"}';
+          }
+          break;
+        case "checkExistence":
+          final node = _getNodeFromOffset(
+              Offset(x!.toDouble(), y!.toDouble()));
+          final result = await _execCommandWithFinder(x, y, node!, "check_existence", enterText: '', foundBy: foundBy, value: foundValue);
+          if (!result?['isError']) {
+            return '{"text":"${node.getAttribute("text")}","elementId":"${node
+                .getAttribute("id")}","type":"${node.getAttribute("class")}","foundBy":"${result?['foundBy']}","value":"${result?['value']}"}';
           }
           break;
       }
@@ -561,70 +479,239 @@ class AppiumHandler {
     return "{}";
   }
 
-  Future<Map<String, dynamic>?> _execCommandWithFinder(int x, int y, XmlNode node, String command, {String? enterText}) async {
-    final text = _findNodeText(
-        Offset(x.toDouble(), y.toDouble()), node);
-    if (text != null && text.isNotEmpty) {
-      Map<String, String> params = {
-        "command":command,"finderType":"ByText","text":text
-      };
-      if (command == "enter_text") {
-        params['text'] = enterText!;
-      }
-      final result = await _driverExtension?.call(params);
-      if (!result?['isError']) {
-        return result;
-      }
+  Future<Map<String, dynamic>?> _execCommandWithFinder(int x, int y, XmlNode node, String command,
+      {String? enterText, int? duration, int? dx, int? dy, String? foundBy, String? value}) async {
+    if (foundBy != null && foundBy == 'byToolTip') {
+      return await _driveTooltip(command, value!, dx: dx, dy: dy);
     }
-    final tooltip = _findNodeTooltip(
+    final tooltip = await _findNodeTooltip(
         Offset(x.toDouble(), y.toDouble()), node);
     if (tooltip != null && tooltip.isNotEmpty) {
-      Map<String, String> params = {
-        "command":command,"finderType":"ByTooltipMessage","text":tooltip
-      };
-      if (command == "enter_text") {
-        params['text'] = enterText!;
-      }
-      final result = await _driverExtension?.call(params);
-      if (!result?['isError']) {
-        return result;
-      }
+      return _driveTooltip(command, tooltip, dx: dx, dy: dy);
     }
-    final semanticLabel = _findNodeLabel(
+    if (foundBy != null && foundBy == "bySemanticsLabel") {
+      return _driveSemanticLabel(command, value!, enterText:enterText, duration: duration, dx: dx, dy: dy);
+    }
+    final semanticLabel = await _findNodeLabel(
         Offset(x.toDouble(), y.toDouble()), node);
     if (semanticLabel != null && semanticLabel.isNotEmpty) {
-      Map<String, String> params = {
-        "command":command,"finderType":"BySemanticsLabel","label":semanticLabel
-      };
-      if (command == "enter_text") {
-        params['text'] = enterText!;
-      }
-      final result = await _driverExtension?.call(params);
-      if (!result?['isError']) {
-        return result;
-      }
+      return _driveSemanticLabel(command, value!, enterText:enterText, duration: duration, dx: dx, dy: dy);
     }
-    final key = node.getAttribute("key");
+    if (foundBy != null && foundBy == "byValueKey") {
+      return _driveKey(command, value!, enterText: enterText, duration: duration, dx: dx, dy: dy);
+    }
+    var key = node.getAttribute("key");
     if (key != null && key.isNotEmpty) {
-      Map<String, String> params = {
-        "command":"tap","finderType":"ByValueKey","keyValueString":key.toString(),"keyValueType":"String"
+      return _driveKey(command, key, enterText: enterText, duration: duration, dx: dx, dy: dy);
+    }
+    if (foundBy != null && foundBy == "byText") {
+      return _driveText(command, value!, enterText: enterText, duration: duration, dx: dx, dy: dy);
+    }
+    final text = await _findNodeText(
+        Offset(x.toDouble(), y.toDouble()), node);
+    if (text != null && text.isNotEmpty) {
+      return _driveText(command, text, enterText: enterText, duration: duration, dx: dx, dy: dy);
+    }
+    if (foundBy != null && foundBy == "byType") {
+      return _driveType(command, value!, enterText: enterText, duration: duration, dx: dx, dy: dy);
+    }
+    final type = node.getAttribute('class');
+    return _driveType(command, type!, enterText: enterText, duration: duration, dx: dx, dy: dy);
+  }
+
+  Future<Map<String, dynamic>?> _driveTooltip(String command, String tooltip, {int? duration, int? dx, int? dy}) async {
+    if (command == "check_text" || command == 'check_existence') {
+      Map<String, dynamic> result = {
+        'isError': false,
+        'foundBy': 'byTooltip',
+        'value': tooltip
       };
+      return result;
+    } else {
+      Map<String, String> params = {
+        "command": command, "finderType": "ByTooltipMessage", "text": tooltip
+      };
+      if (dx != null && dy != null) {
+        params['dx'] = dx.toString();
+        params['dy'] = dy.toString();
+      }
+      if (duration != null) {
+        params['duration'] = duration.toString();
+      }
+      if (command == 'scroll') {
+        params['frequency'] = '60';
+      }
+      final result = await _driverExtension?.call(params);
+      if (!result?['isError']) {
+        result?['foundBy'] = 'byTooltip';
+        result?['value'] = tooltip;
+        return result;
+      }
+    }
+    return {};
+  }
+
+  Future<Map<String, dynamic>?>_driveSemanticLabel(String command, String semanticLabel,
+      {String? enterText, int? duration, int? dx, int? dy}) async {
+    if (command == "check_text" || command == 'check_existence') {
+      Map<String, dynamic> result = {
+        'isError': false,
+        'foundBy': 'bySemanticsLabel',
+        'value': semanticLabel
+      };
+      return result;
+    } else {
+      Map<String, String> params = {
+        "command": command,
+        "finderType": "bySemanticsLabel",
+        "label": semanticLabel
+      };
+      if (dx != null && dy != null) {
+        params['dx'] = dx.toString();
+        params['dy'] = dy.toString();
+      }
+      if (duration != null) {
+        params['duration'] = duration.toString();
+      }
+      if (command == 'scroll') {
+        params['frequency'] = '60';
+      }
+      if (command == "enter_text") {
+        params['text'] = enterText!;
+      } else if (command == 'tap' && duration != null) {
+        params['duration'] = duration!.toString();
+      }
+      final result = await _driverExtension?.call(params);
+      if (!result?['isError']) {
+        result?['foundBy'] = 'bySemanticsLabel';
+        result?['value'] = semanticLabel;
+        return result;
+      }
+    }
+    return {};
+  }
+
+  Future<Map<String, dynamic>?> _driveKey(String command, String key,
+      {String? enterText, int? duration, int? dx, int? dy}) async {
+    if (key.substring(0,3) == "[<'") {
+      final end = key.indexOf("'>]");
+      key = key.substring(3, end);
+    }
+
+    if (command == "check_text" || command == 'check_existence') {
+      Map<String, dynamic> result = {
+        'isError': false,
+        'foundBy': "byValueKey",
+        'value': key
+      };
+      return result;
+    } else {
+      if (command == "enter_text") {
+        Map<String, String> params = {
+          "command": "set_text_entry_emulation",
+          "finderType": "ByValueKey",
+          "keyValueString": 'textfield',
+          "keyValueType": "String",
+          "enabled": "true"
+        };
+        await _driverExtension?.call(params);
+      }
+
+      Map<String, String> params = {
+        "command": command,
+        "finderType": "ByValueKey",
+        "keyValueString": key,
+        "keyValueType": "String"
+      };
+      if (dx != null && dy != null) {
+        params['dx'] = dx.toString();
+        params['dy'] = dy.toString();
+      }
+      if (duration != null) {
+        params['duration'] = duration.toString();
+      }
+      if (command == 'scroll') {
+        params['frequency'] = '60';
+      }
       if (command == "enter_text") {
         params['text'] = enterText!;
       }
       final result = await _driverExtension?.call(params);
       if (!result?['isError']) {
+        result?['foundBy'] = 'byValueKey';
+        result?['value'] = key.toString();
+      }
+      return result;
+    }
+  }
+
+  Future<Map<String, dynamic>?> _driveText(String command, String text,
+      {String? enterText, int? duration, int? dx, int? dy}) async {
+    if (command == "check_text" || command == 'check_existence') {
+      Map<String, dynamic> result = {
+        'isError': false,
+        'foundBy': 'byText',
+        'value': text
+      };
+      return result;
+    } else {
+      Map<String, String> params = {
+        "command": command, "finderType": "ByText", "text": text
+      };
+      if (dx != null && dy != null) {
+        params['dx'] = dx.toString();
+        params['dy'] = dy.toString();
+      }
+      if (duration != null) {
+        params['duration'] = duration.toString();
+      }
+      if (command == 'scroll') {
+        params['frequency'] = '60';
+      }
+      if (command == "enter_text") {
+        params['text'] = enterText!;
+      }
+      final result = await _driverExtension?.call(params);
+      if (!result?['isError']) {
+        result?['foundBy'] = 'byText';
+        result?['value'] = text;
         return result;
       }
     }
-    final str = node.getAttribute('class');
-    Map<String, String> params = {
-      "command":"tap","finderType":"ByType","type":str!
-    };
-    if (command == "enter_text") {
-      params['text'] = enterText!;
+    return {};
+  }
+
+  Future<Map<String, dynamic>?> _driveType(String command, String type,
+      {String? enterText, int? duration, int? dx, int? dy}) async {
+    if (command == "check_text" || command == 'check_existence') {
+      Map<String, dynamic> result = {
+        'isError': false,
+        'foundBy': 'byType',
+        'value': type
+      };
+      return result;
+    } else {
+      Map<String, String> params = {
+        "command": command, "finderType": "ByType", "type": type!
+      };
+      if (dx != null && dy != null) {
+        params['dx'] = dx.toString();
+        params['dy'] = dy.toString();
+      }
+      if (duration != null) {
+        params['duration'] = duration.toString();
+      }
+      if (command == 'scroll') {
+        params['frequency'] = '60';
+      }
+      if (command == "enter_text") {
+        params['text'] = enterText!;
+      }
+      final result = await _driverExtension?.call(params);
+      result?['foundBy'] = 'byType';
+      result?['value'] = type;
+      return result;
     }
-    return await _driverExtension?.call(params);
   }
 
   XmlElement? _findSizeRoot(XmlElement element) {
@@ -642,27 +729,31 @@ class AppiumHandler {
     return contained;
   }
 
-  String? _findNodeLabel(Offset pos, XmlNode node) {
-    final text = node.getAttribute("semanticLabel");
-    if (text != null && text.isNotEmpty) {
-      return text;
-    }
-    for (final element in node.childElements) {
-      final text = _findElementLabel(pos, element);
+  Future<String?> _findNodeLabel(Offset pos, XmlNode node) async {
+    try {
+      final text = node.getAttribute("semanticLabel");
       if (text != null && text.isNotEmpty) {
         return text;
       }
+      for (final element in node.childElements) {
+        final text = await _findElementLabel(pos, element);
+        if (text != null && text.isNotEmpty) {
+          return text;
+        }
+      }
+    } catch(e) {
+      sendMail(subject:"NodeLabel exception", body: e.toString());
     }
     return null;
   }
 
-  String? _findElementLabel(Offset pos, XmlElement element) {
+  Future<String?> _findElementLabel(Offset pos, XmlElement element) async {
     var text = element.getAttribute("semanticLabel");
     if (text != null && text.isNotEmpty) {
       return text;
     }
     for (final element in element.childElements) {
-      text = _findElementLabel(pos, element);
+      text = await _findElementLabel(pos, element);
       if (text != null && text.isNotEmpty) {
         return text;
       }
@@ -670,27 +761,29 @@ class AppiumHandler {
     return null;
   }
 
-  String? _findNodeText(Offset pos, XmlNode node) {
+  Future<String?> _findNodeText(Offset pos, XmlNode node) async {
     final text = node.getAttribute("text");
     if (text != null && text.isNotEmpty) {
       return text;
     }
+    /*
     for (final element in node.childElements) {
-      final text = _findElementText(pos, element);
+      final text = await _findElementText(pos, element);
       if (text != null && text.isNotEmpty) {
         return text;
       }
     }
+     */
     return null;
   }
 
-  String? _findElementText(Offset pos, XmlElement element) {
+  Future<String?> _findElementText(Offset pos, XmlElement element) async {
     var text = element.getAttribute("text");
     if (text != null && text.isNotEmpty) {
       return text;
     }
     for (final element in element.childElements) {
-      text = _findElementText(pos, element);
+      text = await _findElementText(pos, element);
       if (text != null && text.isNotEmpty) {
         return text;
       }
@@ -698,27 +791,29 @@ class AppiumHandler {
     return null;
   }
 
-  String? _findNodeTooltip(Offset pos, XmlNode node) {
+  Future<String?> _findNodeTooltip(Offset pos, XmlNode node) async {
     final text = node.getAttribute("tooltip");
     if (text != null && text.isNotEmpty) {
       return text;
     }
+    /*
     for (final element in node.childElements) {
-      final text = _findElementTooltip(pos, element);
+      final text = await _findElementTooltip(pos, element);
       if (text != null && text.isNotEmpty) {
         return text;
       }
     }
+     */
     return null;
   }
 
-  String? _findElementTooltip(Offset pos, XmlElement element) {
+  Future<String?> _findElementTooltip(Offset pos, XmlElement element) async {
     var text = element.getAttribute("tooltip");
     if (text != null && text.isNotEmpty) {
       return text;
     }
     for (final element in element.childElements) {
-      text = _findElementTooltip(pos, element);
+      text = await _findElementTooltip(pos, element);
       if (text != null && text.isNotEmpty) {
         return text;
       }
@@ -754,7 +849,7 @@ class AppiumHandler {
         double.parse(bottom!));
   }
 
-  _sendMail({String? subject, String? body}) async {
+  sendMail({String? subject, String? body}) async {
     var stackTrace = StackTrace.current;
     final Email email = Email(
       body: body ?? "",

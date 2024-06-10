@@ -1,123 +1,231 @@
-import 'dart:developer';
-import 'dart:ui';
-
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/src/foundation/diagnostics.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/rendering.dart';
 
-import 'app.dart';
-import 'devtools_app/initialization.dart';
-import 'devtools_app/main.dart';
-import 'devtools_app/src/framework/framework_core.dart';
-import 'devtools_app/src/screens/debugger/syntax_highlighter.dart';
-import 'devtools_app/src/screens/inspector/inspector_controller.dart';
-import 'devtools_app/src/screens/inspector/inspector_screen.dart';
-import 'devtools_app/src/screens/inspector/inspector_tree_controller.dart';
-import 'devtools_app/src/shared/analytics/metrics.dart';
-import 'devtools_app/src/shared/console/eval/inspector_tree.dart';
-import 'devtools_app/src/shared/console/primitives/simple_items.dart';
-import 'devtools_app/src/shared/environment_parameters/environment_parameters_base.dart';
-import 'devtools_app/src/shared/environment_parameters/environment_parameters_external.dart';
-import 'devtools_app/src/shared/globals.dart';
-import 'devtools_app/src/shared/primitives/utils.dart';
-import 'devtools_app/src/shared/screen.dart';
-import 'devtools_app/src/shared/utils.dart';
-import 'devtools_app_shared/src/utils/globals.dart';
-import 'devtools_shared/src/service_utils.dart';
-import 'package:provider/provider.dart' as provider;
+class MyWidgetInspectorService with WidgetInspectorService {
 
-class MyInspectorController /*extends State<MyHomeState>
-    with ProvidedControllerMixin<InspectorController, MyHomeState>*/ {
+  Map<String?, RenderObject> _mapItemObject = {};
+  Map<String?, RenderObject> get mapItemObject => _mapItemObject;
 
-  MyInspectorController();
-  DevToolsScreen<InspectorController>? devScreen;
-
-  Future<InspectorTreeNode?> getRootNode(/*BuildContext context*/) async {
-    //initializeFramework();
-    //InspectorController controller = provider.Provider.of<InspectorController>(context, listen: false);
-
-    await initializeDevTools(
-      integrationTestMode: integrationTestMode,
-      shouldEnableExperiments: false, //shouldEnableExperiments,
-    );
-
-    // Load the Dart syntax highlighting grammar.
-    await SyntaxHighlighter.initialize();
-
-    setGlobal(
-      DevToolsEnvironmentParameters,
-      ExternalDevToolsEnvironmentParameters(),
-    );
-
-    final info = await Service.getInfo();
-    //final routerDelegate = DevToolsRouterDelegate.of(AppiumHandler().buildContext!);
-    final connected =
-        await FrameworkCore.initVmService(serviceUriAsString: info.serverUri.toString(), logException: false, errorReporter: (String title, Object error){
-          debugPrint("$title: $error");
-        });
-    if (connected) {
-      final connectedUri =
-            Uri.parse(serviceConnection.serviceManager.serviceUri!);
-      //routerDelegate.updateArgsIfChanged({'uri': '$connectedUri'});
-      final shortUri = connectedUri.replace(path: '');
-      notificationService.push('Successfully connected to $shortUri.');
-    } else if (normalizeVmServiceUri(info.serverUri.toString()) == null) {
-      notificationService.push(
-        'Failed to connect to the VM Service at "_init".\n'
-            'The link was not valid.',
-      );
-    }
-
-    final inspector = InspectorController(
-      inspectorTree: InspectorTreeController(
-        gaId: InspectorScreenMetrics.summaryTreeGaId,
-      ),
-      detailsTree: InspectorTreeController(
-        gaId: InspectorScreenMetrics.detailsTreeGaId,
-      ),
-      treeType: FlutterTreeType.widget,
-    );
-
-    devScreen = DevToolsScreen<InspectorController>(
-      InspectorScreen(),
-      createController: (_) => inspector/*InspectorController(
-        inspectorTree: InspectorTreeController(
-          gaId: InspectorScreenMetrics.summaryTreeGaId,
-        ),
-        detailsTree: InspectorTreeController(
-          gaId: InspectorScreenMetrics.detailsTreeGaId,
-        ),
-        treeType: FlutterTreeType.widget,
-      ),
-      */
-    );
-
-    inspector.recomputeTreeRoot(null, null, false,
-      subtreeDepth: maxJsInt,
-    );
-
-    //controller.inspectorTree.setupInspectorTreeNode(controller.inspectorTree.root!, controller.inspectorTree.root!.diagnostic!, expandChildren: true, expandProperties: false);
-    //controller.waitForPendingUpdateDone();
-
-    return null;
+  MyWidgetInspectorService() {
+    selection.addListener(() {
+      if (selectionChangedCallback != null) {
+        selectionChangedCallback!();
+      }
+    });
   }
-}
 
-class MyInspectorScreenBody extends StatefulWidget {
-  const MyInspectorScreenBody({super.key});
+  Map<String, Object?>? _nodeToJson(
+      DiagnosticsNode? node,
+      InspectorSerializationDelegate delegate,
+      ) {
+    return node?.toJsonMap(delegate);
+  }
 
-  @override
-  MyInspectorScreenBodyState createState() => MyInspectorScreenBodyState();
-}
+  List<Map<String, Object?>> _nodesToJson(
+      List<DiagnosticsNode> nodes,
+      InspectorSerializationDelegate delegate, {
+        required DiagnosticsNode? parent,
+      }) {
+    return DiagnosticsNode.toJsonList(nodes, parent, delegate);
+  }
 
-class MyInspectorScreenBodyState extends State<MyInspectorScreenBody>
-    with
-        ProvidedControllerMixin<InspectorController, MyInspectorScreenBody> {
+  DiagnosticsNode? _idToDiagnosticsNode(String? diagnosticableId) {
+    final Object? object = toObject(diagnosticableId);
+    return WidgetInspectorService.objectToDiagnosticsNode(object);
+  }
 
-  @override
-  Widget build(BuildContext context) {
-    initController();
-    return View(view: View.of(context), child: const Scaffold());
+  Map<String, Object?>? _getRootWidgetSummaryTree(
+      String groupName, {
+        Map<String, Object>? Function(DiagnosticsNode, InspectorSerializationDelegate)? addAdditionalPropertiesCallback,
+      }) {
+    return _nodeToJson(
+      WidgetsBinding.instance.rootElement?.toDiagnosticsNode(),
+      InspectorSerializationDelegate(
+        groupName: groupName,
+        subtreeDepth: 1000000,
+        summaryTree: true,
+        service: this,
+        addAdditionalPropertiesCallback: addAdditionalPropertiesCallback,
+      ),
+    );
+  }
+
+  Map<String, Object?> getRootWidgetSummaryTreeWithPreviews(
+      Map<String, String> parameters,
+      ) {
+    final String groupName = parameters['groupName']!;
+    final Map<String, Object?>? result = _getRootWidgetSummaryTree(
+      groupName,
+      addAdditionalPropertiesCallback: (DiagnosticsNode node, InspectorSerializationDelegate? delegate) {
+        final Map<String, Object> additionalJson = <String, Object>{};
+        final Object? value = node.value;
+        if (value is Element) {
+          final RenderObject? renderObject = value.renderObject;
+          if (renderObject is RenderParagraph) {
+            additionalJson['textPreview'] = renderObject.text.toPlainText();
+          }
+          additionalJson['key'] = value.widget.key.toString();
+        }
+        return additionalJson;
+      },
+    );
+    return {
+      'result': result,
+    };
+  }
+
+  List<Object> myGetProperties(String? diagnosticableId, String groupName) {
+    final DiagnosticsNode? node = _idToDiagnosticsNode(diagnosticableId);
+    if (node == null) {
+      return const <Object>[];
+    }
+    return _nodesToJson(node.getProperties(), InspectorSerializationDelegate(groupName: groupName, service: this), parent: node);
+  }
+
+  Map<String, Object?> getLayoutExplorerNode(
+      Map<String, String> parameters,
+      ) {
+    final String? diagnosticableId = parameters['id'];
+    final int subtreeDepth = int.parse(parameters['subtreeDepth']!);
+    final String? groupName = parameters['groupName'];
+    Map<String, dynamic>? result = <String, dynamic>{};
+    final DiagnosticsNode? root = _idToDiagnosticsNode(diagnosticableId);
+    if (root == null) {
+      return {
+        'result': result,
+      };
+    }
+    result = _nodeToJson(
+      root,
+      InspectorSerializationDelegate(
+        groupName: groupName,
+        summaryTree: true,
+        subtreeDepth: subtreeDepth,
+        service: this,
+        addAdditionalPropertiesCallback:
+            (DiagnosticsNode node, InspectorSerializationDelegate delegate) {
+          final Object? value = node.value;
+          final RenderObject? renderObject =
+            value is Element ? value.renderObject : null;
+          if (renderObject == null) {
+            return const <String, Object>{};
+          }
+
+          final DiagnosticsSerializationDelegate
+          renderObjectSerializationDelegate = delegate.copyWith(
+            subtreeDepth: 0,
+            includeProperties: true,
+            expandPropertyValues: false,
+          );
+          final Map<String, Object> additionalJson = <String, Object>{
+            // Only include renderObject properties separately if this value is not already the renderObject.
+            // Only include if we are expanding property values to mitigate the risk of infinite loops if
+            // RenderObjects have properties that are Element objects.
+            if (value is! RenderObject && delegate.expandPropertyValues)
+              'renderObject': renderObject
+                  .toDiagnosticsNode()
+                  .toJsonMap(renderObjectSerializationDelegate),
+          };
+
+          final RenderObject? renderParent = renderObject.parent;
+          if (renderParent != null &&
+              delegate.subtreeDepth > 0 &&
+              delegate.expandPropertyValues) {
+            final Object? parentCreator = renderParent.debugCreator;
+            if (parentCreator is DebugCreator) {
+              additionalJson['parentRenderElement'] =
+                  parentCreator.element.toDiagnosticsNode().toJsonMap(
+                    delegate.copyWith(
+                      subtreeDepth: 0,
+                      includeProperties: true,
+                    ),
+                  );
+              // TODO(jacobr): also describe the path back up the tree to
+              // the RenderParentElement from the current element. It
+              // could be a surprising distance up the tree if a lot of
+              // elements don't have their own RenderObjects.
+            }
+          }
+
+          try {
+            if (!renderObject.debugNeedsLayout) {
+              // ignore: invalid_use_of_protected_member
+              final Constraints constraints = renderObject.constraints;
+              final Map<String, Object> constraintsProperty = <String, Object>{
+                'type': constraints.runtimeType.toString(),
+                'description': constraints.toString(),
+              };
+              if (constraints is BoxConstraints) {
+                constraintsProperty.addAll(<String, Object>{
+                  'minWidth': constraints.minWidth.toString(),
+                  'minHeight': constraints.minHeight.toString(),
+                  'maxWidth': constraints.maxWidth.toString(),
+                  'maxHeight': constraints.maxHeight.toString(),
+                });
+              }
+              additionalJson['constraints'] = constraintsProperty;
+            }
+          } catch (e) {
+            // Constraints are sometimes unavailable even though
+            // debugNeedsLayout is false.
+          }
+
+          var left = renderObject.paintBounds.left;
+          var top = renderObject.paintBounds.top;
+          try {
+            if (renderObject is RenderBox) {
+              additionalJson['isBox'] = true;
+              additionalJson['size'] = <String, Object>{
+                'width': renderObject.size.width.toString(),
+                'height': renderObject.size.height.toString(),
+              };
+
+              final ParentData? parentData = renderObject.parentData;
+              if (parentData is FlexParentData) {
+                additionalJson['flexFactor'] = parentData.flex!;
+                additionalJson['flexFit'] =
+                    (parentData.fit ?? FlexFit.tight).name;
+              } else if (parentData is BoxParentData) {
+                final Offset offset = parentData.offset;
+                final Offset offsetG = renderObject.localToGlobal(Offset(left, top));
+                additionalJson['parentData'] = <String, Object>{
+                  'offsetX': offset.dx.toString(),
+                  'offsetY': offset.dy.toString(),
+                  'globalX': offsetG.dx.toString(),
+                  'globalY': offsetG.dy.toString(),
+                };
+              }
+            } else if (renderObject is RenderView) {
+              additionalJson['size'] = <String, Object>{
+                'width': renderObject.size.width.toString(),
+                'height': renderObject.size.height.toString(),
+              };
+            }
+          } catch (e) {
+            // Not laid out yet.
+          }
+
+          Map<String, dynamic>? parent = additionalJson['parentData'] as Map<String, dynamic>?;
+          if (parent == null) {
+            if (renderObject is RenderBox) {
+              Offset topLeft = renderObject.localToGlobal(Offset(left, top));
+              additionalJson['parentData'] = <String, Object>{
+                'offsetX': left,
+                'offsetY': top,
+                'globalX': topLeft.dx.toString(),
+                'globalY': topLeft.dy.toString(),
+              };
+            }
+          }
+
+          return additionalJson;
+        },
+      ),
+    );
+    return {
+      'result': result,
+    };
   }
 }
