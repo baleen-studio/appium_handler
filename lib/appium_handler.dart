@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:developer';
 import 'dart:isolate';
+import 'dart:ui';
 
 import 'package:appium_handler/widget_tree.dart';
 import 'package:flutter/cupertino.dart';
@@ -40,7 +41,7 @@ class AppiumHandler/* with WidgetInspectorService*/ {
   //String? _driverUrl;
   final jsonEncoder = const JsonEncoder();
   //FlutterDriver? _driver;
-  BuildContext? _context;
+  //BuildContext? _context;
   XmlDocument? _document;
   MyDriverExtension? _driverExtension;
   bool _isInTest = false;
@@ -56,9 +57,9 @@ class AppiumHandler/* with WidgetInspectorService*/ {
   //  _myApp = app;
   //}
   //BuildContext? get buildContext => _context;
-  set buildContext(BuildContext? context) {
-    _context = context;
-  }
+  //set buildContext(BuildContext? context) {
+  //  _context = context;
+  //}
   SendPort get mySendPort => _receivePort.sendPort;
   set senderPort(SendPort sendPort) {
     _senderPort = sendPort;
@@ -89,6 +90,7 @@ class AppiumHandler/* with WidgetInspectorService*/ {
     var cmdAndArg = cmd?.split(':');
     var msg = cmdAndArg?[0]; //parts[1].trim();
     if (msg == 'getScreenSize') {
+      /*
       // some call handling in the application]
       final deviceWidth = MediaQuery
           .of(_context!)
@@ -101,7 +103,17 @@ class AppiumHandler/* with WidgetInspectorService*/ {
           .height
           .toInt();
       //final screenSize = WidgetsBinding.instance.window.physicalSize;
-      return jsonEncode({'width': deviceWidth, 'height': deviceHeight});
+       */
+      FlutterView view = PlatformDispatcher.instance.views.first;
+
+      double physicalWidth = view.physicalSize.width;
+      double physicalHeight = view.physicalSize.height;
+
+      double devicePixelRatio = view.devicePixelRatio;
+
+      double screenWidth = physicalWidth / devicePixelRatio;
+      double screenHeight = physicalHeight / devicePixelRatio;
+      return jsonEncode({'width': screenWidth.toInt(), 'height': screenHeight.toInt()});
     } else if (msg == 'getPageSource') {
       final tree = MyWidgetInspectorService();
 
@@ -596,6 +608,9 @@ class AppiumHandler/* with WidgetInspectorService*/ {
     if (key.substring(0,3) == "[<'") {
       final end = key.indexOf("'>]");
       key = key.substring(3, end);
+    } else if (key.substring(0,1) == "[") {
+      final end = key.indexOf("]");
+      key = key.substring(1, end);
     }
 
     if (command == "check_text" || command == 'check_existence') {
