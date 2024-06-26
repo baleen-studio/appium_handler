@@ -322,17 +322,22 @@ class AppiumHandler/* with WidgetInspectorService*/ {
           final res = await _execCommandWithFinder(int.parse(node.getAttribute('centerX')!), int.parse(node.getAttribute('centerY')!), node, "tap");
           ret = jsonEncode(res);
           return;
-          /*
-          final str = node.getAttribute('class');
-          Map<String, String> params = {
-            "command":"tap","finderType":"ByType","type":str!
-          };
-          _driverExtension?.call(params).then((value) {
-          });
-          ret =
-            '{"value":{"ELEMENT":"$id","element-6066-11e4-a52e-4f735466cecf":"$id"},"sessionId":"${parts?[1]}"}';
+        }
+      });
+      return ret ?? "{}";
+    } else if (msg == 'setValue') {
+      var parts = cmdAndArg?[1].split(',');
+      String? ret;
+      _document?.descendants.toList().reversed.forEach((node) async {
+        var id = node.getAttribute("id");
+        if (id == parts?[1]) {
+          final x = int.parse(node.getAttribute('centerX')!);
+          final y = int.parse(node.getAttribute('centerY')!);
+          final res = await _execCommandWithFinder(x, y, node, "tap");
+          ret = jsonEncode(res);
+          final res2 = await _execCommandWithFinder(x, y, node, "enter_text", enterText: parts?[0]);
+          ret = jsonEncode(res2);
           return;
-           */
         }
       });
       return ret ?? "{}";
