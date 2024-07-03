@@ -70,13 +70,13 @@ sudo npm i -g appium
 
 ### 4.2. **改良版Appium Flutter Driverをインストールする**
 
-   ```terminalで
-   git clone https://github.com/baleen-studio/appium-flutter-driver
-   cd ./appium-flutter-driver/driver
-   ./release.sh
-   cd ../..
-   appium driver install --source local /path/to/appium-flutter-driver/driver
-   ```
+```terminalで
+git clone https://github.com/baleen-studio/appium-flutter-driver
+cd ./appium-flutter-driver/driver
+./release.sh
+cd ../..
+appium driver install --source local /path/to/appium-flutter-driver/driver
+```
 
 ### 4.3. **改良版Appium Inspectorをビルドする**
 
@@ -135,7 +135,7 @@ npm run start
   
 スプラッシュ画面の後、下記のような画面が表示されます。
 
-![起動画面](https://github.com/baleen-studio/appium_handler/blob/main/images/image1.png)
+![起動画面](./images/image1.png)
 
 ## 5. 操作方法
 
@@ -175,27 +175,27 @@ iOSの場合：
 入力終了後、鉛筆アイコンから変わったフロッピーアイコンをクリックし、起動パラメータの設定を終了します。
 すると、下記のようにパラメータが設定されます。
 
-![パラメータ設定](https://github.com/baleen-studio/appium_handler/blob/main/images/image2.png)
+![パラメータ設定](./images/image2.png)
 
 この状態で、右下の「セッションを開始する」ボタンをクリックすると、上記で指定したデバイス上で指定されたアプリが起動し、テスト操作待ちとなります。起動したアプリの画面が、Appium Inspectorのアプリ画面エリアに表示されます。
 
 生のFlutterのWidgetTreeは非常に長く深いものなのですが、この画面の「アプリソース」には、ソースコードに記述した分のWidgetTreeのみが表示されるようになっています。
 
-![コマンド待ち](https://github.com/baleen-studio/appium_handler/blob/main/images/image3.png)
+![コマンド待ち](./images/image3.png)
 
 ### 5.2. **テストスクリプトの生成**
 
 上記画面内の①レコーディング開始、②レコーダー画面、③座標でタップ/スワイプをクリックし、テストスクリプトを出力できる状態にします。
 
-![コマンド待ち](https://github.com/baleen-studio/appium_handler/blob/main/images/image4.png)
+![コマンド待ち](./images/image4.png)
 
 この状態で、右下の「＋」ボタンを２回クリックし、真ん中に表示されている数字が「２」となるかを確認するテストスクリプトを生成させます。
 テストターゲットの期待値を入力するには、画面上でそのターゲット上で右クリックし、出力されるメニューから「この値をテスト」を選択します。
 右クリックで表示されるコンテキストメニューは下記のようなものです。
 
-| メニュー                                                                                 | 説明 |
-|--------------------------------------------------------------------------------------|-------|
-| ![言語一覧](https://github.com/baleen-studio/appium_handler/blob/main/images/image5.png) | 「要素を調べる」は元々あるもので、ブラウザの要素調査画面が右側に表示されます<br>「文字列入力」はTextField等を右クリックし、文字列を入力することができます<br>「この値をテスト」は右クリックした要素がどう表示されるかをチェックします <br>「存在確認」は右クリックした要素が画面上に存在するかチェックします|
+| メニュー                         | 説明                                                                                                                                                                |
+|------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ![言語一覧](./images/image5.png) | 「要素を調べる」は元々あるもので、ブラウザの要素調査画面が右側に表示されます<br>「文字列入力」はTextField等を右クリックし、文字列を入力することができます<br>「この値をテスト」は右クリックした要素がどう表示されるかをチェックします <br>「存在確認」は右クリックした要素が画面上に存在するかチェックします |
 
 アプリ画面を操作するたびに、デバイス画面が操作された状態になり、その画面がAppium Inspectorにコピーされます。
 最終的に、このようなコードを生成できます。
@@ -219,7 +219,7 @@ assert.strictEqual(
 このコードはNode.js用のコードになります。違う言語に変更したい場合は、右上のプルダウンで言語を変更すれば、その場で違う言語にコンバートされます。
 扱える言語は以下の通りです。
 
-![言語一覧](https://github.com/baleen-studio/appium_handler/blob/main/images/image6.png)
+![言語一覧](./images/image6.png)
 
 生成されたコードを実行させるには、それぞれの言語の実行環境が必要です。この辺りはAppiumの本家のホームページでご確認ください。
 Dartに関しては、Flutterのインテグレーションテストをご覧ください。
