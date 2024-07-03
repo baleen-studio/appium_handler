@@ -32,24 +32,16 @@ class AppiumHandler/* with WidgetInspectorService*/ {
   AppiumHandler._internal();
   
   /// Returns [value] plus 1.
-  int addOne(int value) => value + 1;
+  //int addOne(int value) => value + 1;
 
-  //Widget? _myApp;
-  //PackageInfo? _packageInfo;
   int _index = 0;
   String _source = "";
-  //String? _driverUrl;
   final jsonEncoder = const JsonEncoder();
-  //FlutterDriver? _driver;
-  //BuildContext? _context;
   XmlDocument? _document;
   MyDriverExtension? _driverExtension;
-  bool _isInTest = false;
   var uuid = const Uuid();
   final _receivePort = ReceivePort();
-  SendPort? _senderPort;
-  //final _visiblityDetectorrController = VisibilityDetectorController();
-  Map<String, List<Offset>> _treeItemOffsets = {};
+  final Map<String, List<Offset>> _treeItemOffsets = {};
 
   MyDriverExtension? get driverExtension => _driverExtension;
 
@@ -62,7 +54,6 @@ class AppiumHandler/* with WidgetInspectorService*/ {
   //}
   SendPort get mySendPort => _receivePort.sendPort;
   set senderPort(SendPort sendPort) {
-    _senderPort = sendPort;
     //_senderPort?.send(_receivePort.sendPort);
   }
 
@@ -89,187 +80,186 @@ class AppiumHandler/* with WidgetInspectorService*/ {
   //sendMail(subject: "apiHandler", body:cmd);
     var cmdAndArg = cmd?.split(':');
     var msg = cmdAndArg?[0]; //parts[1].trim();
-    if (msg == 'getScreenSize') {
-      /*
-      // some call handling in the application]
-      final deviceWidth = MediaQuery
-          .of(_context!)
-          .size
-          .width
-          .toInt();
-      final deviceHeight = MediaQuery
-          .of(_context!)
-          .size
-          .height
-          .toInt();
-      //final screenSize = WidgetsBinding.instance.window.physicalSize;
-       */
-      FlutterView view = PlatformDispatcher.instance.views.first;
+    switch(msg) {
+      case 'getScreenSize':
+        FlutterView view = PlatformDispatcher.instance.views.first;
 
-      double physicalWidth = view.physicalSize.width;
-      double physicalHeight = view.physicalSize.height;
+        double physicalWidth = view.physicalSize.width;
+        double physicalHeight = view.physicalSize.height;
 
-      double devicePixelRatio = view.devicePixelRatio;
+        double devicePixelRatio = view.devicePixelRatio;
 
-      double screenWidth = physicalWidth / devicePixelRatio;
-      double screenHeight = physicalHeight / devicePixelRatio;
-      return jsonEncode({'width': screenWidth.toInt(), 'height': screenHeight.toInt()});
-    } else if (msg == 'getPageSource') {
-      final tree = MyWidgetInspectorService();
+        double screenWidth = physicalWidth / devicePixelRatio;
+        double screenHeight = physicalHeight / devicePixelRatio;
+        return jsonEncode({'width': screenWidth.toInt(), 'height': screenHeight.toInt()});
+      case 'getPageSource':
+        final tree = MyWidgetInspectorService();
 
-      void layoutTree(Map<String, dynamic>? element) {
-        final valueId = element?['valueId'];
+        void layoutTree(Map<String, dynamic>? element) {
+          final valueId = element?['valueId'];
 
-        double left = 0.0;
-        double top = 0.0;
-        double width = 0.0;
-        double height = 0.0;
+          double left = 0.0;
+          double top = 0.0;
+          double width = 0.0;
+          double height = 0.0;
 
-        final layout = tree.getLayoutExplorerNode({'id':valueId, 'subtreeDepth': '100000', "groupName": "tree_1"});
-        Map<String, dynamic> result = layout['result'] as Map<String, dynamic>;
-        Map<String, dynamic> size = result['size'];
-        width = double.parse(size['width']);
-        height = double.parse(size['height']);
-        if (result['parentData'] != null) {
-          Map<String, dynamic> parentData = result['parentData'];
-          left = double.parse(parentData['globalX']);
-          top = double.parse(parentData['globalY']);
-        } else if (result['renderObject'] != null) {
-          Map<String, dynamic> renderObject = result['renderObject'];
-          List<dynamic> properties = renderObject['properties'];
-          for (Map<String, dynamic> property in properties) {
-            if (property['name'] == 'parentData') {
-              String description = property['description'];
-              if (description.indexOf('Offset') > 0) {
-                final parts = description.split(';');
-                int start = parts[0].indexOf('(');
-                final values = parts[0].substring(start+1);
-                int comma = values.indexOf(',');
-                final xValue = values.substring(0, comma);
-                int bracket = values.indexOf(')');
-                final yValue = values.substring(comma+2, bracket);
-                left = double.parse(xValue);
-                top = double.parse(yValue);
+          final layout = tree.getLayoutExplorerNode({'id':valueId, 'subtreeDepth': '100000', "groupName": "tree_1"});
+          Map<String, dynamic> result = layout['result'] as Map<String, dynamic>;
+          Map<String, dynamic> size = result['size'];
+          width = double.parse(size['width']);
+          height = double.parse(size['height']);
+          if (result['parentData'] != null) {
+            Map<String, dynamic> parentData = result['parentData'];
+            left = double.parse(parentData['globalX']);
+            top = double.parse(parentData['globalY']);
+          } else if (result['renderObject'] != null) {
+            Map<String, dynamic> renderObject = result['renderObject'];
+            List<dynamic> properties = renderObject['properties'];
+            for (Map<String, dynamic> property in properties) {
+              if (property['name'] == 'parentData') {
+                String description = property['description'];
+                if (description.indexOf('Offset') > 0) {
+                  final parts = description.split(';');
+                  int start = parts[0].indexOf('(');
+                  final values = parts[0].substring(start+1);
+                  int comma = values.indexOf(',');
+                  final xValue = values.substring(0, comma);
+                  int bracket = values.indexOf(')');
+                  final yValue = values.substring(comma+2, bracket);
+                  left = double.parse(xValue);
+                  top = double.parse(yValue);
+                }
               }
             }
           }
-        }
-        Offset topLeft = Offset(left, top);
-        Offset bottomRight = Offset(left+width, top+height);
+          Offset topLeft = Offset(left, top);
+          Offset bottomRight = Offset(left+width, top+height);
 
-        List<Offset> listOffset = [topLeft, bottomRight];
-        _treeItemOffsets[valueId] = listOffset;
+          List<Offset> listOffset = [topLeft, bottomRight];
+          _treeItemOffsets[valueId] = listOffset;
 
-        if (element?['hasChildren'] as bool) {
-          for (final child in element?['children']) {
-            layoutTree(child);
-          }
-        }
-      }
-
-      void visitorTree(Map<String, dynamic>? element) {
-        String runtimeType = element?['widgetRuntimeType'];
-        final type = runtimeType
-            .replaceAll('<', '-')
-            .replaceAll('>', '-');
-        final valueId = element?['valueId'];
-
-        List<dynamic> properties = tree.myGetProperties(valueId, 'tree_1');
-        String? key;
-        String? text;
-        String? enabled;
-        String? toolTip;
-        String? semanticLabel;
-        for (final property in properties) {
-          if (property['name'] == 'key') {
-            key = property['description'] ?? '';
-            key = key?.replaceAll('"', '');
-            if (key == 'null') {
-              key = '';
-            }
-          } else if (property['name'] == 'data') {
-            text = property['description'] ?? '';
-            text = text?.replaceAll('"', '');
-            if (text == 'null') {
-              text = '';
-            }
-          } else if (property['name'] == 'enabled') {
-            enabled = property['description'] ?? '';
-            enabled = enabled?.replaceAll('"', '');
-            if (enabled == 'null') {
-              enabled = '';
-            }
-          } else if (property['name'] == 'tooltip') {
-            toolTip = property['description'] ?? '';
-            toolTip = toolTip?.replaceAll('"', '');
-            if (toolTip == 'null') {
-              toolTip = '';
-            }
-          } else if (property['name'] == 'semanticLabel') {
-            semanticLabel = property['description'] ?? '';
-            semanticLabel = semanticLabel?.replaceAll('"', '');
-            if (semanticLabel == 'null') {
-              semanticLabel = '';
-            }
-          } else if (property['name'] == 'controller') {
-            final txt = property['description'];
-            final start = txt.indexOf('┤');
-            final end = txt.indexOf('├');
-            if (start > 0 && end > 0) {
-              text = txt.substring(start+1, end);
+          if (element?['hasChildren'] as bool) {
+            for (final child in element?['children']) {
+              layoutTree(child);
             }
           }
         }
 
-        String? pass = "false";
-        bool isEditable = (runtimeType == 'TextField' || runtimeType == 'TextFormField');
+        void visitorTree(Map<String, dynamic>? element) {
+          String runtimeType = element?['widgetRuntimeType'];
+          final type = runtimeType
+              .replaceAll('<', '-')
+              .replaceAll('>', '-');
+          final valueId = element?['valueId'];
 
-        Offset topLeft = const Offset(0.0, 0.0);
-        Offset bottomRight = const Offset(0.0, 0.0);
-        if (_treeItemOffsets[valueId] != null) {
-          final listOffset = _treeItemOffsets[valueId];
-          if (listOffset != null) {
-            topLeft = listOffset[0];
-            bottomRight = listOffset[1];
+          List<dynamic> properties = tree.myGetProperties(valueId, 'tree_1');
+          String? key;
+          String? text;
+          String? enabled;
+          String? toolTip;
+          String? semanticLabel;
+          for (final property in properties) {
+            if (property['name'] == 'key') {
+              key = property['description'] ?? '';
+              key = key?.replaceAll('"', '');
+              if (key == 'null') {
+                key = '';
+              }
+            } else if (property['name'] == 'data') {
+              text = property['description'] ?? '';
+              text = text?.replaceAll('"', '');
+              if (text == 'null') {
+                text = '';
+              }
+            } else if (property['name'] == 'enabled') {
+              enabled = property['description'] ?? '';
+              enabled = enabled?.replaceAll('"', '');
+              if (enabled == 'null') {
+                enabled = '';
+              }
+            } else if (property['name'] == 'tooltip') {
+              toolTip = property['description'] ?? '';
+              toolTip = toolTip?.replaceAll('"', '');
+              if (toolTip == 'null') {
+                toolTip = '';
+              }
+            } else if (property['name'] == 'semanticLabel') {
+              semanticLabel = property['description'] ?? '';
+              semanticLabel = semanticLabel?.replaceAll('"', '');
+              if (semanticLabel == 'null') {
+                semanticLabel = '';
+              }
+            } else if (property['name'] == 'controller') {
+              final txt = property['description'];
+              final start = txt.indexOf('┤');
+              final end = txt.indexOf('├');
+              if (start > 0 && end > 0) {
+                text = txt.substring(start+1, end);
+              }
+            }
           }
+
+          String? pass = "false";
+          bool isEditable = (runtimeType == 'TextField' || runtimeType == 'TextFormField');
+
+          Offset topLeft = const Offset(0.0, 0.0);
+          Offset bottomRight = const Offset(0.0, 0.0);
+          if (_treeItemOffsets[valueId] != null) {
+            final listOffset = _treeItemOffsets[valueId];
+            if (listOffset != null) {
+              topLeft = listOffset[0];
+              bottomRight = listOffset[1];
+            }
+          }
+
+          ++_index;
+          _source =
+          '$_source<$type id="$valueId" key="$key" index="$_index" class="$type" text="${text ?? ''}" tooltip="${toolTip ?? ''}" password="${pass ?? ''}" bounds="[${topLeft
+              .dx.toInt()},${topLeft.dy.toInt()}][${bottomRight.dx
+              .toInt()},${bottomRight.dy.toInt()}]" enabled="${enabled ?? ''}" semanticLabel="${semanticLabel ?? ''}" input="${isEditable ? "true" : "false"}" centerX="${((topLeft.dx+bottomRight.dx)/2).toInt()}" centerY="${((topLeft.dy+bottomRight.dy)/2).toInt()}"';
+          _source += '>\n';
+          if (element?['hasChildren'] as bool) {
+            for (final child in element?['children']) {
+              visitorTree(child);
+            }
+          }
+          _source += '</$type>\n';
         }
 
-        ++_index;
-        _source =
-        '$_source<$type id="$valueId" key="$key" index="$_index" class="$type" text="${text ?? ''}" tooltip="${toolTip ?? ''}" password="${pass ?? ''}" bounds="[${topLeft
-            .dx.toInt()},${topLeft.dy.toInt()}][${bottomRight.dx
-            .toInt()},${bottomRight.dy.toInt()}]" enabled="${enabled ?? ''}" semanticLabel="${semanticLabel ?? ''}" input="${isEditable ? "true" : "false"}" centerX="${((topLeft.dx+bottomRight.dx)/2).toInt()}" centerY="${((topLeft.dy+bottomRight.dy)/2).toInt()}"';
-        _source += '>\n';
-        if (element?['hasChildren'] as bool) {
-          for (final child in element?['children']) {
-            visitorTree(child);
-          }
+        _source = '<?xml version="1.0"?>\n';
+        _source += "<tree>\n";
+
+        final result = tree.getRootWidgetSummaryTreeWithPreviews({"groupName": "tree_1"});
+        layoutTree(result['result'] as Map<String, dynamic>?);
+        visitorTree(result['result'] as Map<String, dynamic>?);
+
+        _source += "</tree>\n";
+        try {
+          _document = XmlDocument.parse(_source);
+          return _document.toString();
+        } catch (e) {
+          // Handle any exceptions thrown during decoding
+          sendMail(subject: "XML parse", body: "Error parsing JSON: $_source");
+          return _source;
         }
-        _source += '</$type>\n';
-      }
-
-      _source = '<?xml version="1.0"?>\n';
-      _source += "<tree>\n";
-
-      final result = tree.getRootWidgetSummaryTreeWithPreviews({"groupName": "tree_1"});
-      layoutTree(result['result'] as Map<String, dynamic>?);
-      visitorTree(result['result'] as Map<String, dynamic>?);
-
-      //WidgetsFlutterBinding.ensureInitialized().rootElement?.visitChildren(visitor);
-      //visitor(WidgetsFlutterBinding.ensureInitialized().rootElement!);
-      //WidgetsFlutterBinding.ensureInitialized().rootElement?.visitChildElements(visitor);
-      //_context?.visitChildElements(visitor);
-      _source += "</tree>\n";
+    case 'performActions':
+      var idx = cmd?.indexOf(':');
+      var json = cmd?.substring(idx! + 1).trim();
+      List<dynamic>? jsonObject;
       try {
-        _document = XmlDocument.parse(_source);
-        return _document.toString();
+        // Attempt to decode the JSON string
+        jsonObject = jsonDecode(json!);
       } catch (e) {
         // Handle any exceptions thrown during decoding
-        sendMail(subject: "XML parse", body: "Error parsing JSON: $_source");
-        return _source;
+        sendMail(subject: "JSON decode", body: "Error decoding JSON: $e");
+        return 'Error decoding JSON: $e';
       }
+      if (jsonObject is List) {
+        return await _performActions(jsonObject);
+      }
+      return "";
     /*
-    } else if (msg == 'screenShot') {
+    case 'screenShot':
       String? b64;
       FlutterDriver? driver;
       setUpAll(() async {
@@ -296,24 +286,7 @@ class AppiumHandler/* with WidgetInspectorService*/ {
         sleep(const Duration(milliseconds: 1000));
       }
       return b64!;
-     */
-    } else if (msg == 'performActions') {
-      var idx = cmd?.indexOf(':');
-      var json = cmd?.substring(idx! + 1).trim();
-      List<dynamic>? jsonObject;
-      try {
-        // Attempt to decode the JSON string
-        jsonObject = jsonDecode(json!);
-      } catch (e) {
-        // Handle any exceptions thrown during decoding
-        sendMail(subject: "JSON decode", body: "Error decoding JSON: $e");
-        return 'Error decoding JSON: $e';
-      }
-      if (jsonObject is List) {
-        return await _performActions(jsonObject);
-      }
-      return "";
-    } else if (msg == 'click') {
+    case 'click':
       var parts = cmdAndArg?[1].split(',');
       String? ret;
       _document?.descendants.toList().reversed.forEach((node) async {
@@ -325,23 +298,79 @@ class AppiumHandler/* with WidgetInspectorService*/ {
         }
       });
       return ret ?? "{}";
-    } else if (msg == 'setValue') {
+    case 'setValue':
       var parts = cmdAndArg?[1].split(',');
       String? ret;
+      List<Future<XmlNode>> futures = [];
       _document?.descendants.toList().reversed.forEach((node) async {
         var id = node.getAttribute("id");
         if (id == parts?[1]) {
           final x = int.parse(node.getAttribute('centerX')!);
           final y = int.parse(node.getAttribute('centerY')!);
           final res = await _execCommandWithFinder(x, y, node, "tap");
-          ret = jsonEncode(res);
-          final res2 = await _execCommandWithFinder(x, y, node, "enter_text", enterText: parts?[0]);
-          ret = jsonEncode(res2);
-          return;
+          if (!res?['isError']) {
+            final res2 = await _execCommandWithFinder(
+                x, y, node, "enter_text", enterText: parts?[0]);
+            ret = jsonEncode(res2);
+          }
         }
+        futures.add(futureNode(node));
       });
+      Future.wait(futures).then((onValue) {});
+
       return ret ?? "{}";
-    } else if (msg == 'findElement') {
+     */
+    case 'getFinderType':
+      var idx = cmd?.indexOf(':');
+      var json = cmd?.substring(idx! + 1).trim();
+      List<Future<XmlNode>> futures = [];
+      Map<String, dynamic>? jsonObject;
+      try {
+        // Attempt to decode the JSON string
+        jsonObject = jsonDecode(json!);
+      } catch (e) {
+        // Handle any exceptions thrown during decoding
+        sendMail(subject: "JSON decode", body: "Error decoding JSON: $e");
+        return 'Error decoding JSON: $e';
+      }
+      String? foundBy;
+      String? value;
+      _document?.descendants.toList().reversed.forEach((node) async {
+        final id = node.getAttribute("id");
+        if (id == jsonObject?['id']) {
+          final x = int.parse(node.getAttribute('centerX')!);
+          final y = int.parse(node.getAttribute('centerY')!);
+
+          foundBy = 'byType';
+          value = node.getAttribute('class');
+
+          final tooltip = await _findNodeTooltip(Offset(x.toDouble(), y.toDouble()), node);
+          if (tooltip != null && tooltip.isNotEmpty) {
+            foundBy = 'byToolTip';
+            value = tooltip;
+          }
+          final semanticLabel = await _findNodeLabel(Offset(x.toDouble(), y.toDouble()), node);
+          if (semanticLabel != null && semanticLabel.isNotEmpty) {
+            foundBy = 'bySemanticsLabel';
+            value = semanticLabel;
+          }
+          var key = node.getAttribute("key");
+          if (key != null && key.isNotEmpty) {
+            foundBy = 'byValueKey';
+            value = key;
+          }
+          final text = await _findNodeText(Offset(x.toDouble(), y.toDouble()), node);
+          if (text != null && text.isNotEmpty) {
+            foundBy = 'byText';
+            value = text;
+          }
+        }
+        futures.add(futureNode(node));
+      });
+      Future.wait(futures).then((onValue) {});
+      String ret = '{"isError": false, "foundBy": "$foundBy", "text": "$value"}';
+      return ret;
+    case 'findElement':
       var separated = cmdAndArg?[1].split(',');
       if (_document != null && separated?[0] == 'id') {
         // id,b1a4b918-116e-464a-80cf-12c9a6029aaf,bb9c570b-b1f1-4ef1-8448-bb5003db6b73
@@ -387,6 +416,10 @@ class AppiumHandler/* with WidgetInspectorService*/ {
       }
     }
     return jsonEncode({'width': msg, 'height': msg});
+  }
+
+  Future<XmlNode> futureNode(XmlNode node) async {
+    return node;
   }
 
   Future<String> _performActions(List<dynamic> jsonObject) async {
