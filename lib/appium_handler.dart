@@ -258,6 +258,97 @@ class AppiumHandler/* with WidgetInspectorService*/ {
         return await _performActions(jsonObject);
       }
       return "";
+    case 'getFinderType':
+      var idx = cmd?.indexOf(':');
+      var json = cmd?.substring(idx! + 1).trim();
+      List<Future<XmlNode>> futures = [];
+      Map<String, dynamic>? jsonObject;
+      try {
+        // Attempt to decode the JSON string
+        jsonObject = jsonDecode(json!);
+      } catch (e) {
+        // Handle any exceptions thrown during decoding
+        sendMail(subject: "JSON decode", body: "Error decoding JSON: $e");
+        return 'Error decoding JSON: $e';
+      }
+      String? foundBy;
+      String? value;
+      _document?.descendants.toList().reversed.forEach((node) async {
+        final id = node.getAttribute("id");
+        if (id == jsonObject?['id']) {
+          foundBy = 'byType';
+          value = node.getAttribute('class');
+
+          final tooltip = node.getAttribute("tooltip");
+          if (tooltip != null && tooltip.isNotEmpty) {
+            foundBy = 'byToolTip';
+            value = tooltip;
+          }
+          final semanticLabel = node.getAttribute("semanticLabel");
+          if (semanticLabel != null && semanticLabel.isNotEmpty) {
+            foundBy = 'bySemanticsLabel';
+            value = semanticLabel;
+          }
+          var key = node.getAttribute("key");
+          if (key != null && key.isNotEmpty) {
+            foundBy = 'byValueKey';
+            value = key;
+          }
+          final text = node.getAttribute("text");
+          if (text != null && text.isNotEmpty) {
+            foundBy = 'byText';
+            value = text;
+          }
+        }
+        futures.add(futureNode(node));
+      });
+      Future.wait(futures).then((onValue) {});
+      String ret = '{"isError": false, "foundBy": "$foundBy", "text": "$value"}';
+      return ret;
+    case 'findElement':
+      var separated = cmdAndArg?[1].split(',');
+      if (_document != null && separated?[0] == 'id') {
+        // id,b1a4b918-116e-464a-80cf-12c9a6029aaf,bb9c570b-b1f1-4ef1-8448-bb5003db6b73
+        var ret = "{}";
+        var id = separated?[1];
+        _document?.descendants.forEach((node) {
+          if (node.getAttribute('id') == id) {
+            ret =
+            '{"value":{"ELEMENT":"$id","element-6066-11e4-a52e-4f735466cecf":"$id"},"sessionId":"${separated?[2]}"}';
+          }
+        });
+        return ret;
+      } else {
+        // xpath,//RawGestureDetector[@id="18525c8e-2d9a-45c1-b9fa-684b4ad777bf"],56b8d972-7b19-4dcd-8c88-8bec231ac638
+        var separated = cmdAndArg?[1].split(',');
+        if (_document != null && separated?[0] == 'xpath') {
+          int? idIdx = separated?[1].indexOf("[@id=");
+          if (idIdx != null && idIdx >= 0) {
+            var id = separated?[1].substring(idIdx + "[@id=".length + 1);
+            var ele = separated?[1].substring(2, idIdx);
+            idIdx = id?.indexOf('"]');
+            if (idIdx != null && idIdx >= 0) {
+              id = id?.substring(0, idIdx).replaceAll('<', '-').replaceAll(
+                  '>', '-');
+            }
+            if (id != null && ele != null) {
+              var lines = _document?.findAllElements(ele!);
+              if (lines != null) {
+                for (var line in lines) {
+                  if (line.getAttribute("id") == id) {
+                    var element = _findSizeRoot(line);
+                    if (element != null) {
+                      id = element.getAttribute("id");
+                    }
+                    return '{"value":{"ELEMENT":"$id","element-6066-11e4-a52e-4f735466cecf":"$id"},"sessionId":"${separated?[2]}"}';
+                  }
+                }
+                return "{}";
+              }
+            }
+          }
+        }
+      }
     /*
     case 'screenShot':
       String? b64;
@@ -320,100 +411,6 @@ class AppiumHandler/* with WidgetInspectorService*/ {
 
       return ret ?? "{}";
      */
-    case 'getFinderType':
-      var idx = cmd?.indexOf(':');
-      var json = cmd?.substring(idx! + 1).trim();
-      List<Future<XmlNode>> futures = [];
-      Map<String, dynamic>? jsonObject;
-      try {
-        // Attempt to decode the JSON string
-        jsonObject = jsonDecode(json!);
-      } catch (e) {
-        // Handle any exceptions thrown during decoding
-        sendMail(subject: "JSON decode", body: "Error decoding JSON: $e");
-        return 'Error decoding JSON: $e';
-      }
-      String? foundBy;
-      String? value;
-      _document?.descendants.toList().reversed.forEach((node) async {
-        final id = node.getAttribute("id");
-        if (id == jsonObject?['id']) {
-          final x = int.parse(node.getAttribute('centerX')!);
-          final y = int.parse(node.getAttribute('centerY')!);
-
-          foundBy = 'byType';
-          value = node.getAttribute('class');
-
-          final tooltip = await _findNodeTooltip(Offset(x.toDouble(), y.toDouble()), node);
-          if (tooltip != null && tooltip.isNotEmpty) {
-            foundBy = 'byToolTip';
-            value = tooltip;
-          }
-          final semanticLabel = await _findNodeLabel(Offset(x.toDouble(), y.toDouble()), node);
-          if (semanticLabel != null && semanticLabel.isNotEmpty) {
-            foundBy = 'bySemanticsLabel';
-            value = semanticLabel;
-          }
-          var key = node.getAttribute("key");
-          if (key != null && key.isNotEmpty) {
-            foundBy = 'byValueKey';
-            value = key;
-          }
-          final text = await _findNodeText(Offset(x.toDouble(), y.toDouble()), node);
-          if (text != null && text.isNotEmpty) {
-            foundBy = 'byText';
-            value = text;
-          }
-        }
-        futures.add(futureNode(node));
-      });
-      Future.wait(futures).then((onValue) {});
-      String ret = '{"isError": false, "foundBy": "$foundBy", "text": "$value"}';
-      return ret;
-    case 'findElement':
-      var separated = cmdAndArg?[1].split(',');
-      if (_document != null && separated?[0] == 'id') {
-        // id,b1a4b918-116e-464a-80cf-12c9a6029aaf,bb9c570b-b1f1-4ef1-8448-bb5003db6b73
-        var ret = "{}";
-        var id = separated?[1];
-        _document?.descendants.forEach((node) {
-          if (node.getAttribute('id') == id) {
-            ret =
-              '{"value":{"ELEMENT":"$id","element-6066-11e4-a52e-4f735466cecf":"$id"},"sessionId":"${separated?[2]}"}';
-          }
-        });
-        return ret;
-      } else {
-        // xpath,//RawGestureDetector[@id="18525c8e-2d9a-45c1-b9fa-684b4ad777bf"],56b8d972-7b19-4dcd-8c88-8bec231ac638
-        var separated = cmdAndArg?[1].split(',');
-        if (_document != null && separated?[0] == 'xpath') {
-          int? idIdx = separated?[1].indexOf("[@id=");
-          if (idIdx != null && idIdx >= 0) {
-            var id = separated?[1].substring(idIdx + "[@id=".length + 1);
-            var ele = separated?[1].substring(2, idIdx);
-            idIdx = id?.indexOf('"]');
-            if (idIdx != null && idIdx >= 0) {
-              id = id?.substring(0, idIdx).replaceAll('<', '-').replaceAll(
-                  '>', '-');
-            }
-            if (id != null && ele != null) {
-              var lines = _document?.findAllElements(ele!);
-              if (lines != null) {
-                for (var line in lines) {
-                  if (line.getAttribute("id") == id) {
-                    var element = _findSizeRoot(line);
-                    if (element != null) {
-                      id = element.getAttribute("id");
-                    }
-                    return '{"value":{"ELEMENT":"$id","element-6066-11e4-a52e-4f735466cecf":"$id"},"sessionId":"${separated?[2]}"}';
-                  }
-                }
-                return "{}";
-              }
-            }
-          }
-        }
-      }
     }
     return jsonEncode({'width': msg, 'height': msg});
   }
