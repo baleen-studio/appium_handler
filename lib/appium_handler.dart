@@ -349,6 +349,57 @@ class AppiumHandler/* with WidgetInspectorService*/ {
           }
         }
       }
+    case 'findByPosition':
+      var idx = cmd?.indexOf(':');
+      var json = cmd?.substring(idx! + 1).trim();
+      List<Future<XmlNode>> futures = [];
+      Map<String, dynamic>? jsonObject;
+      try {
+        // Attempt to decode the JSON string
+        jsonObject = jsonDecode(json!);
+      } catch (e) {
+        // Handle any exceptions thrown during decoding
+        sendMail(subject: "JSON decode", body: "Error decoding JSON: $e");
+        return 'Error decoding JSON: $e';
+      }
+      final x = jsonObject?['x'];
+      final y = jsonObject?['y'];
+      final node = _getNodeFromOffset(
+          Offset(x!.toDouble(), y!.toDouble()));
+      if (node != null) {
+        final text = await _findNodeText(
+            Offset(x.toDouble(), y.toDouble()), node);
+        var result = {"text": text};
+        final tooltip = await _findNodeTooltip(
+            Offset(x.toDouble(), y.toDouble()), node);
+        if (tooltip != null && tooltip.isNotEmpty) {
+          result['foundBy'] = 'byTooltip';
+          result['value'] = tooltip;
+          return jsonEncode(result);
+        }
+        final semanticLabel = await _findNodeLabel(
+            Offset(x.toDouble(), y.toDouble()), node);
+        if (semanticLabel != null && semanticLabel.isNotEmpty) {
+          result['foundBy'] = 'bySemanticsLabel';
+          result['value'] = semanticLabel;
+          return jsonEncode(result);
+        }
+        var key = node.getAttribute("key");
+        if (key != null && key.isNotEmpty) {
+          result['foundBy'] = 'byValueKey';
+          result['value'] = key.toString();
+          return jsonEncode(result);
+        }
+        if (text != null && text.isNotEmpty) {
+          result['foundBy'] = 'byText';
+          result['value'] = text;
+          return jsonEncode(result);
+        }
+        final type = node.getAttribute('class');
+        result['foundBy'] = 'byType';
+        result['value'] = type;
+        return jsonEncode(result);
+      }
     /*
     case 'screenShot':
       String? b64;
