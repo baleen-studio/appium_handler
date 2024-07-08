@@ -193,3 +193,43 @@ The context menu that appears on right-click is as follows:
 |---------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | ![Language List](./images/image5.png) | "Inspect Element" is the original option, displaying the element inspection screen on the right<br>"Enter String" allows you to input a string by right-clicking on a TextField, etc.<br>"Test This Value" checks how the right-clicked element is displayed.<br>"Verify Existence" checks whether the right-clicked element exists on the screen. |
 
+Every time you operate the app screen, the state of the device screen is reflected, and that screen is copied to the Appium Inspector. Eventually, you can generate code like this.
+
+```js
+await driver.touchAction({
+  action: 'tap',
+  element: { elementId: find.byTooltip('Increment') }
+});
+await driver.touchAction({
+  action: 'tap',
+  element: { elementId: find.byTooltip('Increment') }
+});
+assert.strictEqual(
+  await driver.getElementText(
+    await driver.elementSendKeys(find.byValueKey('counter'))
+  ),
+  '2'
+);
+```
+
+This code is for Node.js. If you want to change it to a different language, you can change the language from the dropdown menu at the top right, and it will be converted on the spot. The supported languages are as follows.
+
+![List of languages](./images/image6.png)
+
+To run the generated code, you will need the execution environment for each language. Please check the official Appium homepage for details on this. For Dart, refer to the integration tests for Flutter.
+
+## 6. Conclusion
+
+With this improvement, it is now possible to operate Appium Inspector with Appium Flutter Driver. This brings the following benefits:
+
+* **Achieve test automation of Flutter apps with the rich features of Appium**
+* **Improve the efficiency of test script creation**
+
+In the future, we plan to fix parts of the Appium Inspector that do not work and make test automation for Flutter apps more efficient.
+
+## 7. References
+
+- [Flutter](https://flutter.dev/)
+* [Appium](https://appium.io/docs/en/latest/)
+* [Appium Flutter Driver](https://github.com/appium/appium-flutter-driver)
+* [Appium Inspector](https://github.com/appium/appium-inspector)
