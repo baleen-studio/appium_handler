@@ -130,7 +130,7 @@ npm run start
 
 After the splash screen, a screen like the following will appear.
 
-![Startup screen](./images/image1.png)
+![Startup screen](./images/image1_e.png)
 
 ## 5. How to Operate
 
@@ -171,27 +171,27 @@ After entering the details, click the floppy icon that replaced the pencil icon 
 
 Then, as shown below, the parameters will be set.
 
-![Parameter settings](./images/image2.png)
+![Parameter settings](./images/image2_e.png)
 
 In this state, click the "Start Session" button at the bottom right, and the specified app will launch on the specified device, waiting for test operations. The screen of the launched app will be displayed in the Appium Inspector's app screen area.
 
 The raw Flutter WidgetTree is very long and deep, but in the "App Source" of this screen, only the WidgetTree written in the source code is displayed.
 
-![Waiting for command](./images/image3.png)
+![Waiting for command](./images/image3_e.png)
 
 ### 5.2. **Generate Test Scripts**
 
 In the screen above, click "Start Recording," "Recorder Screen," and "Tap/Swipe by Coordinates" to enable test script output.
 
-![Waiting for command](./images/image4.png)
+![Waiting for command](./images/image4_e.png)
 
 In this state, click the "+" button at the bottom right twice to generate a test script that checks whether the number in the middle is "2."
 To input the expected value of the test target, right-click on the target on the screen and select "Test This Value" from the menu that appears.
 The context menu that appears on right-click is as follows:
 
-| Menu                                  | Description                                                                                                                                                                                                                                                                                                                                        |
-|---------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| ![Language List](./images/image5.png) | "Inspect Element" is the original option, displaying the element inspection screen on the right<br>"Enter String" allows you to input a string by right-clicking on a TextField, etc.<br>"Test This Value" checks how the right-clicked element is displayed.<br>"Verify Existence" checks whether the right-clicked element exists on the screen. |
+| Menu                                    | Description                                                                                                                                                                                                                                                                                                                                        |
+|-----------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ![Language List](./images/image5_e.png) | "Inspect Element" is the original option, displaying the element inspection screen on the right<br>"Enter String" allows you to input a string by right-clicking on a TextField, etc.<br>"Test This Value" checks how the right-clicked element is displayed.<br>"Verify Existence" checks whether the right-clicked element exists on the screen. |
 
 Every time you operate the app screen, the state of the device screen is reflected, and that screen is copied to the Appium Inspector. Eventually, you can generate code like this.
 
