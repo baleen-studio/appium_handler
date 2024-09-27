@@ -132,7 +132,7 @@ iOSの場合：/path/to/your/project/build/ios/iphonesimulator/Runner.app(シミ
 先ほどビルドを行ったディレクトリで
   
 ```
-npm run start
+npm run dev:electron
 ```
   
 スプラッシュ画面の後、下記のような画面が表示されます。

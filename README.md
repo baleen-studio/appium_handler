@@ -125,7 +125,7 @@ Compress it into a ZIP to create the following:
 In the directory where the build was performed:
 
 ```bash
-npm run start
+npm run dev:electron
 ```
 
 After the splash screen, a screen like the following will appear.
